@@ -1,38 +1,39 @@
-FROM php:7-apache
 
-RUN a2enmod rewrite expires
+FROM ubuntu:latest
+MAINTAINER Dan Pupius <dan@pupi.us>
 
-# install the PHP extensions we need
-RUN apt-get update && apt-get install -y libpng-dev libjpeg-dev && rm -rf /var/lib/apt/lists/* \
-	&& docker-php-ext-configure gd --with-png-dir=/usr --with-jpeg-dir=/usr \
-	&& docker-php-ext-install gd mysqli opcache zip
+# Install apache, PHP, and supplimentary programs. openssh-server, curl, and lynx-cur are for debugging the container.
+RUN apt-get update && \
+    apt-get install -y software-properties-common && \
+    rm -rf /var/lib/apt/lists/*
+RUN add-apt-repository ppa:ondrej/php -y
+RUN apt-get update && apt-get -y upgrade && DEBIAN_FRONTEND=noninteractive apt-get -y install \
+    apache2 php7.0 php7.0-mysql libapache2-mod-php7.0 curl 
 
-# set recommended PHP.ini settings
-# see https://secure.php.net/manual/en/opcache.installation.php
-RUN { \
-		echo 'opcache.memory_consumption=512'; \
-		echo 'opcache.interned_strings_buffer=8'; \
-		echo 'opcache.max_accelerated_files=8000'; \
-		echo 'opcache.revalidate_freq=60'; \
-		echo 'opcache.fast_shutdown=1'; \
-		echo 'opcache.enable_cli=1'; \
-		echo 'post_max_size = 50M'; \
-		echo 'upload_max_filesize = 50M'; \
-	} > /usr/local/etc/php/conf.d/opcache-recommended.ini
+# Enable apache mods.
+RUN a2enmod php7.0
+RUN a2enmod rewrite
 
-VOLUME /var/www/html
+# Update the PHP.ini file, enable <? ?> tags and quieten logging.
+RUN sed -i "s/short_open_tag = Off/short_open_tag = On/" /etc/php/7.0/apache2/php.ini
+RUN sed -i "s/error_reporting = .*$/error_reporting = E_ERROR | E_WARNING | E_PARSE/" /etc/php/7.0/apache2/php.ini
 
-# upstream tarballs include ./wordpress/ so this gives us /usr/src/wordpress
-#	&& echo "$WORDPRESS_SHA1 *wordpress.tar.gz" | sha1sum -c - \
-RUN curl -o wordpress.tar.gz -SL https://wordpress.org/latest.tar.gz \
-	&& tar -xzf wordpress.tar.gz -C /usr/src/ \
-	&& rm wordpress.tar.gz \
-	&& chown -R www-data:www-data /usr/src/wordpress
+# Manually set up the apache environment variables
+ENV APACHE_RUN_USER www-data
+ENV APACHE_RUN_GROUP www-data
+ENV APACHE_LOG_DIR /var/log/apache2
+ENV APACHE_LOCK_DIR /var/lock/apache2
+ENV APACHE_PID_FILE /var/run/apache2.pid
 
-COPY docker-entrypoint.sh /entrypoint.sh
+# Expose apache.
+EXPOSE 80
 
-RUN chmod +x /entrypoint.sh
+# Copy this repo into place.
+ADD www /var/www/site
 
-# grr, ENTRYPOINT resets CMD now
-ENTRYPOINT ["/entrypoint.sh"]
-CMD ["apache2-foreground"]
+# Update the default apache site with the config we created.
+ADD apache-config.conf /etc/apache2/sites-enabled/000-default.conf
+
+
+# By default start up apache in the foreground, override with /bin/bash for interative.
+CMD /usr/sbin/apache2ctl -D FOREGROUND
