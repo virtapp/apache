@@ -23,7 +23,7 @@ jobs:
           command: |
             TAG=$TAG_PFX.$CIRCLE_BUILD_NUM
             docker login -u $DOCKER_USER -p $DOCKER_PASS
-            docker build --no-cache -t agentvi/apache:$TAG /innovi
+            docker build --no-cache -t virtapp/apache:$TAG /virtapp
             docker push virtapp/apache:$TAG
 # ----------------------------------------------------------------------------------------------------------------------
 
@@ -33,7 +33,7 @@ workflows:
     jobs:
       - build:
           context:
-            - virtapp
+            - innovi
           filters:
             branches:
               only: master
