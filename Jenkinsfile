@@ -1,6 +1,6 @@
 pipeline {
   environment {
-    registry = "global-registry.virtapp.io/library/apache-php"
+    registry = "registry.centerity.com/centerity/apache-php"
     registryCredential = 'harbor-registry'
     dockerImage = ''
   }
